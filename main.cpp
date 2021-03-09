@@ -1,6 +1,7 @@
 #include <chrono>
 #include <iostream>
 #include <thread>
+#include <utility>
 
 void threadFunction()
 {
@@ -16,10 +17,10 @@ void threadFunction()
 class Vehicle
 {
 public:
-    Vehicle(int id)
+    explicit Vehicle(int id)
         : _id(id)
     {}
-    void operator()()
+    void operator()() const
     {
         std::cout << "Vehicle #" << _id << " has been created" << std::endl;
     }
@@ -27,6 +28,59 @@ public:
 private:
     int _id;
 };
+
+class VehicleWithMemberFunctions
+{
+public:
+    VehicleWithMemberFunctions()
+        : _id(0)
+    {}
+    void addID(int id)
+    {
+        _id = id;
+    }
+    void printID() const
+    {
+        std::cout << "Vehicle ID=" << _id << std::endl;
+    }
+    void setName(std::string name)
+    {
+        _name = std::move(name);
+    }
+    void printName()
+    {
+        std::cout << "Vehicle name=" << _name << std::endl;
+    }
+
+private:
+    int _id;
+    std::string _name;
+};
+
+void printID(int id)
+{
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::cout << "ID = " << id << std::endl;
+}
+
+void printIDAndName(int id, std::string const& name)
+{
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::cout << "ID = " << id << ", name = " << name << std::endl;
+}
+
+void printName(std::string name, int waitTime)
+{
+    std::this_thread::sleep_for(std::chrono::milliseconds(waitTime));
+    std::cout << "Name (from Thread) = " << name << std::endl;
+}
+
+void printNameWithRef(std::string& name, int waitTime)
+{
+    std::this_thread::sleep_for(std::chrono::milliseconds(waitTime));
+    name += " (from Thread)";
+    std::cout << name << std::endl;
+}
 
 int main()
 {
@@ -111,6 +165,91 @@ int main()
     /*
      * Starting a Thread with Variadic Templates and Member Functions
      */
+    int idForVariadicTemplates = 0;  // Define an integer variable
+
+    // starting threads using variadic templates
+    std::thread t3(printID, idForVariadicTemplates);
+    std::thread t4(printIDAndName, ++idForVariadicTemplates, "MyString");
+
+    // wait for threads before returning
+    t3.join();
+    t4.join();
+
+    std::string name1 = "MyThread5";
+    std::string name2 = "MyThread6";
+
+    // starting threads using value-copy and move semantics
+    std::thread t5(printName, name1, 50);
+    std::thread t6(printName, std::move(name2), 100);
+
+    // wait for threads before returning
+    t5.join();
+    t6.join();
+
+
+
+    // print name from main
+    // The console output shows how using copy-by-value and std::move affect the string parameters:
+    std::cout << "Name1 (from Main) = " << name1 << std::endl;
+    std::cout << "Name2 (from Main) = " << name2 << std::endl;
+
+    std::string name3("MyThread name3");
+
+    // starting thread
+    std::thread t7(printNameWithRef, std::ref(name3), 50);
+
+    // wait for thread before returning
+    t7.join();
+
+    // print name from main
+    name3 += " (from Main)";
+    std::cout << name3 << std::endl;
+    // Even though the code works, we are now sharing mutable data between threads - a primary source for concurrency
+    // bugs.
+
+
+    /*
+     * Starting threads with member functions
+     */
+    // create thread
+    VehicleWithMemberFunctions v1, v2;
+    std::thread t8 = std::thread(&VehicleWithMemberFunctions::addID, v1, 1);   // call member function on object v
+    std::thread t9 = std::thread(&VehicleWithMemberFunctions::addID, &v2, 2);  // call member function on object v
+
+    // wait for thread to finish
+    t8.join();
+    t9.join();
+
+    // print Vehicle id
+    v1.printID();
+    v2.printID();
+
+    // An alternative is to use a heap-allocated object and a reference-counted pointer such as std::shared_ptr<Vehicle>
+    // to ensure that the object lives as long as it takes the thread to finish its work. The following example shows how
+    // this can be implemented:
+    auto v3 = std::make_shared<VehicleWithMemberFunctions>();
+    std::thread t10 = std::thread(&VehicleWithMemberFunctions::addID, v3, 3); // call member function on object v
+
+    // wait for thread to finish
+    t10.join();
+
+    // print Vehicle id
+    v3->printID();
+
+    // create thread
+    auto v4 = std::make_shared<VehicleWithMemberFunctions>();
+    std::thread t11 = std::thread(&VehicleWithMemberFunctions::addID, v3, 4); // call member function on object v
+    std::thread t12 = std::thread(&VehicleWithMemberFunctions::setName, v4, "Jeep"); // call member function on object v
+
+    // wait for thread to finish
+    t11.join();
+    t12.join();
+
+    // print Vehicle id
+    v4->printID();
+    v4->printName();
+
+    // End of Lesson1 section 6 here.
 
     return 0;
 }
